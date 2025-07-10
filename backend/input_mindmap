@@ -1,0 +1,11 @@
+// Mind Map
+digraph {
+	"1. Core Concepts" -> Confidentiality
+	"2. Types of Threats" -> Malware
+	"3. Security Measures" -> Firewalls
+	"4. Cybersecurity Domains" -> "Network Security"
+	"5. Security Tools" -> Wireshark
+	"6. Compliance & Laws" -> GDPR
+	"7. Careers in Cybersecurity" -> "Security Analyst"
+	"8. Emerging Trends" -> "AI in Cybersecurity"
+}
