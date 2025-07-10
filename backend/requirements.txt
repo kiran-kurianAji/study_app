@@ -1,3 +1,10 @@
 openai>=1.0.0
-networkx
 matplotlib
+Flask==2.3.3
+Flask-SQLAlchemy==3.0.5
+Flask-CORS==4.0.0
+Flask-RESTful==0.3.10
+python-dotenv==1.0.0
+google-generativeai==0.3.0
+networkx==3.1
+pyvis==0.3.2

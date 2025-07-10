@@ -1,91 +1,61 @@
 import google.generativeai as genai
-import json
-import networkx as nx
-import matplotlib.pyplot as plt
+import graphviz
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 # Add Graphviz to PATH environment variable
 os.environ["PATH"] += os.pathsep + r"C:\Program Files\Graphviz\bin"
 
 # Set your Gemini API key from environment variable
-gemini_api_key = "AIzaSyBYUOjfiCXkdTulBdM30lVBbDwd4DIppCo"
-#os.getenv('GEMINI_API_KEY')
-if not gemini_api_key:
-    raise ValueError("GEMINI_API_KEY environment variable not set.")
-genai.configure(api_key=gemini_api_key)
 
-# Function to get a mindmap structure from Gemini
-def get_mindmap(prompt):
-    json_format = '''\nOutput JSON format example:\n{\n  "name": "Root Topic",\n  "children": [\n    {\n      "name": "Subtopic 1",\n      "children": [\n        {"name": "Sub-subtopic 1"},\n        {"name": "Sub-subtopic 2"}\n      ]\n    },\n    {\n      "name": "Subtopic 2"}\n  ]\n}\n'''
+#os.getenv('GEMINI_API_KEY')
+gemini_api_key = os.getenv('GEMINI_API_KEY')
+if not gemini_api_key:
+    raise ValueError("Please set the GEMINI_API_KEY environment variable.")
+
+def get_dot_from_gemini(prompt):
+    dot_format = '''
+Output DOT format example:
+digraph Mindmap {
+    node [style=filled, fillcolor=lightblue, fontcolor=black, shape=ellipse];
+    "Main Topic" [fillcolor=gold];
+    "Main Topic" -> "Branch 1" [color=red];
+    "Main Topic" -> "Branch 2" [color=green];
+    "Branch 1" -> "Subtopic 1" [color=red];
+    "Branch 1" -> "Subtopic 2" [color=red];
+}
+'''
     model = genai.GenerativeModel('models/gemini-1.5-flash')
     response = model.generate_content(
-       f"You are an assistant that generates structured mindmaps. Respond ONLY with valid JSON, no explanation or formatting. Use this format: {json_format} Generate a detailed mindmap for: {prompt}"
+        f"""You are an assistant that generates mindmaps in Graphviz DOT format. 
+Respond ONLY with valid DOT code, no explanation or formatting. 
+Use a radial layout (main topic in the center, branches radiating out). 
+Use different fill colors for each main branch and sub-branch, and color the edges to match. 
+Use this format: {dot_format} 
+Generate a detailed mindmap for: {prompt}. 
+Keep node names short."""
     )
     content = response.text.strip()
-    
-    print("Gemini raw response:\n", content)  # Debug: print the raw output
-
     # Remove Markdown code block if present
     if content.startswith("```"):
-        content = content.split("```")[1]  # Get the part after the first ```
-        # Remove possible 'json' after ```
-        if content.strip().startswith("json"):
-            content = content.strip()[4:]
-        # Remove trailing ```
+        content = content.split("```")[1]
+        if content.strip().startswith("dot"):
+            content = content.strip()[3:]
         content = content.rsplit("```", 1)[0]
-    content = content.strip()
+    return content.strip()
 
-    try:
-        mindmap = json.loads(content)
-    except json.JSONDecodeError as e:
-        print("Failed to parse JSON from Gemini response.")
-        raise
-    return mindmap
+def render_dot(dot_code, output_file="mindmap"):
+    dot = graphviz.Source(dot_code)
+    dot.format = "png"
+    dot.render(filename=output_file, cleanup=True)
+    output_file += ".png"
+    return output_file
 
-# Recursive function to add nodes and edges to a graph
-def add_nodes_edges(graph, parent, children):
-    if isinstance(children, list):
-        for child in children:
-            if isinstance(child, dict) and "name" in child:
-                graph.add_edge(parent, child["name"])
-                # Recursively add subchildren if present
-                if "children" in child:
-                    add_nodes_edges(graph, child["name"], child["children"])
-    # If children is not a list, do nothing (leaf node)
-
-# Generate mindmap graph
-def generate_graph(mindmap):
-    G = nx.DiGraph()
-    root = mindmap.get("name", "Root")
-    G.add_node(root)
-    add_nodes_edges(G, root, mindmap.get("children", []))
-    return G
-
-# Visualize the mindmap
-def visualize_mindmap(graph, prompt):
-    plt.figure(figsize=(16, 10))
-    if len(graph.nodes) <= 1 or len(graph.edges) == 0:
-        nx.draw(graph, with_labels=True, node_size=3000, node_color="skyblue", font_size=10, font_weight='bold')
-    else:
-        try:
-            from networkx.drawing.nx_agraph import graphviz_layout  # pygraphviz backend
-            pos = graphviz_layout(graph, prog="dot")
-            nx.draw(graph, pos, with_labels=True, node_size=3000, node_color="skyblue", font_size=10, font_weight='bold', arrows=True)
-        except Exception as e:
-            print("Falling back to shell_layout due to error:", e)
-            try:
-                shells = [[list(graph.nodes)[0]]]
-                children = list(graph.successors(list(graph.nodes)[0]))
-                if children:
-                    shells.append(children)
-                pos = nx.shell_layout(graph, shells)
-                nx.draw(graph, pos, with_labels=True, node_size=3000, node_color="skyblue", font_size=10, font_weight='bold', arrows=True)
-            except Exception as e2:
-                print("Shell layout also failed:", e2)
-                nx.draw(graph, with_labels=True, node_size=3000, node_color="skyblue", font_size=10, font_weight='bold')
-    plt.title(f"Mindmap for '{prompt}'")
-    plt.tight_layout()
-    plt.show()
+def display_image(image_path):
+    from PIL import Image
+    img = Image.open(image_path)
+    img.show()
 
 # Main program
 if __name__ == "__main__":
@@ -96,7 +66,7 @@ if __name__ == "__main__":
     # Read prompt from input.txt
     with open("input.txt", "r", encoding="utf-8") as f:
         prompt = f.read().strip()
-    mindmap_structure = get_mindmap(prompt)
-    print("Parsed mindmap object:", mindmap_structure)
-    graph = generate_graph(mindmap_structure)
-    visualize_mindmap(graph, prompt)
+    dot_code = get_dot_from_gemini(prompt)
+    print("DOT code from Gemini:\n", dot_code)
+    image_path = render_dot(dot_code)
+    display_image(image_path)
